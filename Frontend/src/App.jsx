@@ -4,96 +4,47 @@ import "./App.css";
 function App() {
   const [tracks, setTracks] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
-  const [userPlaylists, setUserPlaylists] = useState([]);
-  const [selectedPlaylistName, setSelectedPlaylistName] = useState("");
-  const [importedPlaylistSongs, setImportedPlaylistSongs] = useState([]);
-  const [playlistRecommendations, setPlaylistRecommendations] = useState([]);
+  const [knownSongIds, setKnownSongIds] = useState(new Set());
+  const [knownArtistNames, setKnownArtistNames] = useState(new Set());
 
   const accessToken = new URLSearchParams(window.location.search).get(
     "access_token"
   );
 
-  // =====================
-  // LOAD USER PLAYLISTS
-  // =====================
-  const loadMyPlaylists = async () => {
-    console.log("Load My Playlists button clicked");
+  const getRecommendations = async (
+    topTracks,
+    blockedIds = knownSongIds,
+    blockedArtists = knownArtistNames
+  ) => {
+    if (topTracks.length === 0) return;
 
-    const res = await fetch(
-      "https://api.spotify.com/v1/me/playlists?limit=20",
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
+    const seedTracks = [...topTracks]
+      .sort(() => 0.5 - Math.random())
+      .slice(0, 15);
 
-    const data = await res.json();
+    let allRecommendations = [];
 
-    console.log("Status:", res.status);
-    console.log("Playlist response:", data);
+    for (const seed of seedTracks) {
+      const songName = seed.name.split("(")[0].split("-")[0].trim();
+      const artistName = seed.artists[0].name;
 
-    if (!res.ok) {
-      alert(data.error?.message || "Could not load playlists");
-      return;
-    }
+      const searchQueries = [
+        songName,
+        artistName,
+        `${songName} ${artistName}`,
+        `${artistName} radio`,
+        `${songName} similar`,
+      ];
 
-    setUserPlaylists(data.items || []);
-  };
+      const randomQuery =
+        searchQueries[Math.floor(Math.random() * searchQueries.length)];
 
-  // =====================
-  // IMPORT PLAYLIST
-  // =====================
-  const importMyPlaylist = async (playlist) => {
-    setSelectedPlaylistName(playlist.name);
-
-    const tracksUrl =
-      playlist.tracks?.href ||
-      `https://api.spotify.com/v1/playlists/${playlist.id}/tracks`;
-
-    const res = await fetch(`${tracksUrl}?limit=50&market=US`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-    const data = await res.json();
-
-    console.log("Playlist tracks status:", res.status);
-    console.log("Playlist tracks data:", data);
-
-    if (!res.ok) {
-      alert(data.error?.message || "Could not read this playlist.");
-      return;
-    }
-
-    const playlistTracks = (data.items || [])
-      .map((item) => item.track)
-      .filter((track) => track && track.type === "track");
-
-    setImportedPlaylistSongs(playlistTracks);
-
-    // =====================
-    // RECOMMENDATIONS
-    // =====================
-    const uniqueArtists = [
-      ...new Set(
-        playlistTracks
-          .map((track) => track.artists?.[0]?.name)
-          .filter(Boolean)
-      ),
-    ];
-
-    console.log("Artists from playlist:", uniqueArtists);
-
-    const selectedArtists = uniqueArtists.slice(0, 5);
-    const allRecommendations = [];
-
-    for (const artistName of selectedArtists) {
       const searchRes = await fetch(
         `https://api.spotify.com/v1/search?q=${encodeURIComponent(
-          artistName
-        )}&type=track&limit=10&market=US`,
+          randomQuery
+        )}&type=track&limit=10&market=US&offset=${Math.floor(
+          Math.random() * 20
+        )}`,
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -103,48 +54,93 @@ function App() {
 
       const searchData = await searchRes.json();
 
-      console.log("Search result for", artistName, searchData);
-
       if (searchData.tracks?.items) {
         allRecommendations.push(...searchData.tracks.items);
       }
     }
 
-    const originalSongIds = new Set(playlistTracks.map((t) => t.id));
+    allRecommendations = allRecommendations.sort(() => 0.5 - Math.random());
 
-    const filtered = allRecommendations.filter(
-      (t) => !originalSongIds.has(t.id)
-    );
+    const usedArtists = new Set();
+    const usedSongs = new Set();
+    const finalRecommendations = [];
 
-    console.log("Final recommendations:", filtered);
+    for (const track of allRecommendations) {
+      if (!track.id) continue;
+      if (blockedIds.has(track.id)) continue;
+      if (usedSongs.has(track.id)) continue;
 
-    setPlaylistRecommendations(filtered);
+      const mainArtist = track.artists[0]?.name;
+      if (!mainArtist) continue;
+
+      const artistKey = mainArtist.toLowerCase();
+
+      if (usedArtists.has(artistKey)) continue;
+
+      finalRecommendations.push(track);
+      usedArtists.add(artistKey);
+      usedSongs.add(track.id);
+
+      if (finalRecommendations.length === 10) break;
+    }
+
+    setRecommendations(finalRecommendations);
   };
 
-  // =====================
-  // USER TOP TRACKS
-  // =====================
   useEffect(() => {
     if (!accessToken) return;
 
-    fetch("https://api.spotify.com/v1/me/top/tracks?limit=10", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setTracks(data.items || []);
-      });
+    const loadData = async () => {
+      const topRes = await fetch(
+        "https://api.spotify.com/v1/me/top/tracks?limit=50",
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      const topData = await topRes.json();
+      const topTracks = topData.items || [];
+
+      const recentRes = await fetch(
+        "https://api.spotify.com/v1/me/player/recently-played?limit=50",
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      const recentData = await recentRes.json();
+      const recentTracks = (recentData.items || []).map((item) => item.track);
+
+      const blockedIds = new Set([
+        ...topTracks.map((track) => track.id),
+        ...recentTracks.map((track) => track.id),
+      ]);
+
+      const blockedArtists = new Set([
+        ...topTracks.map((track) => track.artists[0].name.toLowerCase()),
+        ...recentTracks.map((track) => track.artists[0].name.toLowerCase()),
+      ]);
+
+      setTracks(topTracks.slice(0, 10));
+      setKnownSongIds(blockedIds);
+      setKnownArtistNames(blockedArtists);
+
+      getRecommendations(topTracks, blockedIds, blockedArtists);
+    };
+
+    loadData();
   }, [accessToken]);
 
-  // =====================
-  // LOGIN SCREEN
-  // =====================
   if (!accessToken) {
     return (
       <div className="container">
         <h1>Music Recommender</h1>
+        <p>Find songs based on your Spotify listening history.</p>
+
         <a href="http://localhost:5000/login">
           <button>Connect Spotify</button>
         </a>
@@ -152,75 +148,46 @@ function App() {
     );
   }
 
-  // =====================
-  // MAIN UI
-  // =====================
   return (
     <div className="container">
-      <h1>Your Top Songs</h1>
+      <h1>Music Recommender</h1>
 
-      <div className="song-list">
-        {tracks.map((track) => (
-          <div className="song-card" key={track.id}>
-            <img src={track.album?.images?.[0]?.url || ""} alt="" />
-            <div>
-              <h3>{track.name}</h3>
-              <p>{track.artists[0].name}</p>
-            </div>
+      <button onClick={() => getRecommendations(tracks, knownSongIds, knownArtistNames)}>
+        Refresh Recommendations
+      </button>
+
+      <div className="columns">
+        <section className="column">
+          <h2>Your Top Songs</h2>
+
+          <div className="song-list">
+            {tracks.map((track) => (
+              <div className="song-card" key={track.id}>
+                <img src={track.album?.images?.[0]?.url || ""} alt="" />
+                <div>
+                  <h3>{track.name}</h3>
+                  <p>{track.artists[0].name}</p>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </section>
 
-      <h1>Import Your Playlist</h1>
+        <section className="column">
+          <h2>Recommended Songs</h2>
 
-      <button onClick={loadMyPlaylists}>Load My Playlists</button>
-
-      <div className="song-list">
-        {userPlaylists.map((playlist) => (
-          <div className="song-card" key={playlist.id}>
-            <img src={playlist.images?.[0]?.url || ""} alt="" />
-            <div>
-              <h3>{playlist.name}</h3>
-              <p>{playlist.tracks?.total || 0} songs</p>
-
-              <button onClick={() => importMyPlaylist(playlist)}>
-                Use This Playlist
-              </button>
-            </div>
+          <div className="song-list">
+            {recommendations.map((track) => (
+              <div className="song-card" key={track.id}>
+                <img src={track.album?.images?.[0]?.url || ""} alt="" />
+                <div>
+                  <h3>{track.name}</h3>
+                  <p>{track.artists[0].name}</p>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-
-      <h2>{selectedPlaylistName && `Imported: ${selectedPlaylistName}`}</h2>
-
-      <div className="song-list">
-        {importedPlaylistSongs.map((track) => (
-          <div className="song-card" key={track.id}>
-            <img src={track.album?.images?.[0]?.url || ""} alt="" />
-            <div>
-              <h3>{track.name}</h3>
-              <p>{track.artists[0].name}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <h2>Playlist-Based Recommendations</h2>
-
-      {playlistRecommendations.length === 0 && selectedPlaylistName && (
-        <p>No recommendations yet. Check console logs.</p>
-      )}
-
-      <div className="song-list">
-        {playlistRecommendations.map((track) => (
-          <div className="song-card" key={track.id}>
-            <img src={track.album?.images?.[0]?.url || ""} alt="" />
-            <div>
-              <h3>{track.name}</h3>
-              <p>{track.artists[0].name}</p>
-            </div>
-          </div>
-        ))}
+        </section>
       </div>
     </div>
   );
