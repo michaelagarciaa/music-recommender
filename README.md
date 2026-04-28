@@ -3,28 +3,28 @@
 A web app that connects to your Spotify account and generates personalized song recommendations based on your listening habits.
 
 🚀 Features
-🔐 Spotify OAuth login
-🎵 Displays your top 10 songs
-🤖 Generates 10 recommended songs
-🎯 Filters out songs you’ve already listened to
-🔄 Refresh button for new recommendations
-🎶 Limits to 1 song per artist for variety
-🎨 Clean side-by-side UI
+Spotify OAuth login
+Displays your top 10 songs
+Generates 10 recommended songs
+Filters out songs you’ve already listened to
+Refresh button for new recommendations
+Limits to 1 song per artist for better variety
+Clean side-by-side UI
 🧠 How It Works
 Fetches your top 50 tracks from Spotify
 Fetches your recently played tracks
-Builds a list of songs you've already heard
+Builds a list of songs you have already heard
 Uses your favorite songs as search seeds
 Finds similar tracks using Spotify search
-Filters:
-Removes songs you've already heard
+Filters results:
+Removes songs you already know
 Limits to 1 song per artist
 Returns 10 diverse recommendations
 🛠 Tech Stack
 React (Frontend)
 Node.js + Express (Backend)
 Spotify Web API
-CSS (Custom styling)
+CSS
 ⚙️ Setup Instructions
 1. Clone the repo
 git clone https://github.com/YOUR_USERNAME/music-recommender.git
