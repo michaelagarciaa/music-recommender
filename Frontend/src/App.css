@@ -78,3 +78,36 @@ button:hover {
     width: 95%;
   }
 }
+
+.song-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.song-text h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.song-text p {
+  margin: 0;
+  font-size: 14px;
+  color: #aaa;
+}
+
+.spotify-link {
+  background-color: #1db954;
+  color: white;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 20px;
+  text-decoration: none;
+  font-weight: bold;
+  transition: 0.2s;
+}
+
+.spotify-link:hover {
+  background-color: #1ed760;
+}
