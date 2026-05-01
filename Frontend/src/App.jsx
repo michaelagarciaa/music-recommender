@@ -30,12 +30,12 @@ function App() {
       const artistName = seed.artists[0].name;
 
       const searchQueries = [
-        `${songName} ${artistName}`,
-        `${artistName} radio`,
-        `${artistName} ${songName} remix`,
-        `${artistName} similar`,
+        `${artistName} similar artists`,
+        `${artistName} fans also like`,
+        `${artistName} deep cuts`,
+        `${artistName} underrated songs`,
+        `${artistName} playlist`,
       ];
-
       const randomQuery =
         searchQueries[Math.floor(Math.random() * searchQueries.length)];
 
