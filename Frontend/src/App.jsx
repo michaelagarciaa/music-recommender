@@ -4,6 +4,7 @@ import "./App.css";
 function App() {
   const [tracks, setTracks] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
+  const [recentlyPlayed, setRecentlyPlayed] = useState([]);
   const [knownSongIds, setKnownSongIds] = useState(new Set());
   const [knownArtistNames, setKnownArtistNames] = useState(new Set());
 
@@ -18,7 +19,6 @@ function App() {
   ) => {
     if (!topTracks || topTracks.length === 0) return;
 
-    // Use a smaller, shuffled subset of top tracks as seeds
     const seedTracks = [...topTracks]
       .sort(() => 0.5 - Math.random())
       .slice(0, 10);
@@ -29,7 +29,6 @@ function App() {
       const songName = seed.name.split("(")[0].split("-")[0].trim();
       const artistName = seed.artists[0].name;
 
-      // Focus more on artist + song combos (less same-name noise)
       const searchQueries = [
         `${songName} ${artistName}`,
         `${artistName} radio`,
@@ -69,7 +68,6 @@ function App() {
       }
     }
 
-    // Shuffle all collected tracks
     allRecommendations = allRecommendations.sort(() => 0.5 - Math.random());
 
     const usedArtists = new Set();
@@ -127,6 +125,8 @@ function App() {
         const recentData = await recentRes.json();
         const recentTracks = (recentData.items || []).map((item) => item.track);
 
+        setRecentlyPlayed(recentTracks.slice(0, 10));
+
         const blockedIds = new Set([
           ...topTracks.map((track) => track.id),
           ...recentTracks.map((track) => track.id),
@@ -167,12 +167,6 @@ function App() {
     <div className="container">
       <h1>Music Recommender</h1>
 
-      <button
-        onClick={() => getRecommendations(tracks, knownSongIds, knownArtistNames)}
-      >
-        Refresh Recommendations
-      </button>
-
       <div className="columns">
         {/* TOP SONGS */}
         <section className="column">
@@ -189,7 +183,6 @@ function App() {
                     <p>{track.artists[0].name}</p>
                   </div>
 
-                  {/* PLAY BUTTON */}
                   <a
                     href={track.external_urls?.spotify}
                     target="_blank"
@@ -208,6 +201,16 @@ function App() {
         <section className="column">
           <h2>Recommended Songs</h2>
 
+          {/* MOVED BUTTON HERE */}
+          <button
+            onClick={() =>
+              getRecommendations(tracks, knownSongIds, knownArtistNames)
+            }
+            style={{ marginBottom: "15px" }}
+          >
+            Refresh Recommendations
+          </button>
+
           <div className="song-list">
             {recommendations.map((track) => (
               <div className="song-card" key={track.id}>
@@ -219,7 +222,35 @@ function App() {
                     <p>{track.artists[0].name}</p>
                   </div>
 
-                  {/* PLAY BUTTON */}
+                  <a
+                    href={track.external_urls?.spotify}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="spotify-link"
+                  >
+                    ▶
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* RECENTLY PLAYED */}
+        <section className="column">
+          <h2>Recently Played</h2>
+
+          <div className="song-list">
+            {recentlyPlayed.map((track) => (
+              <div className="song-card" key={track.id}>
+                <img src={track.album?.images?.[0]?.url || ""} alt="" />
+
+                <div className="song-info">
+                  <div className="song-text">
+                    <h3>{track.name}</h3>
+                    <p>{track.artists[0].name}</p>
+                  </div>
+
                   <a
                     href={track.external_urls?.spotify}
                     target="_blank"
