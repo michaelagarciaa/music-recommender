@@ -67,8 +67,9 @@ app.get("/callback", async (req, res) => {
 
         // SEND TOKEN TO FRONTEND
         res.redirect(
-            `http://localhost:5173/dashboard?access_token=${accessToken}`
+            `http://localhost:5173/?access_token=${accessToken}`
         );
+
 
     } catch (error) {
         console.log("TOKEN ERROR:", error.response?.data || error.message);

@@ -1,17 +1,24 @@
 import { useEffect, useState } from "react";
 import "./App.css";
+import { Routes, Route, Link } from "react-router-dom";
+import RecentlyPlayed from "./RecentlyPlayed.jsx";
 
 function App() {
+  // Save token from URL on first load
+  const urlToken = new URLSearchParams(window.location.search).get("access_token");
+  if (urlToken) {
+    localStorage.setItem("access_token", urlToken);
+    window.history.replaceState({}, "", "/");
+  }
+
+  const accessToken = localStorage.getItem("access_token");
+
   const [tracks, setTracks] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
-  const [recentlyPlayed, setRecentlyPlayed] = useState([]);
   const [knownSongIds, setKnownSongIds] = useState(new Set());
   const [knownArtistNames, setKnownArtistNames] = useState(new Set());
 
-  const accessToken = new URLSearchParams(window.location.search).get(
-    "access_token"
-  );
-
+  // ⭐ OLD RECOMMENDATION ENGINE (RESTORED)
   const getRecommendations = async (
     topTracks,
     blockedIds = knownSongIds,
@@ -26,7 +33,6 @@ function App() {
     let allRecommendations = [];
 
     for (const seed of seedTracks) {
-      const songName = seed.name.split("(")[0].split("-")[0].trim();
       const artistName = seed.artists[0].name;
 
       const searchQueries = [
@@ -36,6 +42,7 @@ function App() {
         `${artistName} underrated songs`,
         `${artistName} playlist`,
       ];
+
       const randomQuery =
         searchQueries[Math.floor(Math.random() * searchQueries.length)];
 
@@ -47,16 +54,11 @@ function App() {
             Math.random() * 20
           )}`,
           {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
+            headers: { Authorization: `Bearer ${accessToken}` },
           }
         );
 
-        if (!searchRes.ok) {
-          console.error("Search failed:", searchRes.status);
-          continue;
-        }
+        if (!searchRes.ok) continue;
 
         const searchData = await searchRes.json();
 
@@ -96,55 +98,33 @@ function App() {
     setRecommendations(finalRecommendations);
   };
 
+  // Load top tracks
   useEffect(() => {
     if (!accessToken) return;
 
     const loadData = async () => {
-      try {
-        const topRes = await fetch(
-          "https://api.spotify.com/v1/me/top/tracks?limit=50",
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }
-        );
+      const topRes = await fetch(
+        "https://api.spotify.com/v1/me/top/tracks?limit=50",
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
 
-        const topData = await topRes.json();
-        const topTracks = topData.items || [];
+      const topData = await topRes.json();
+      const topTracks = topData.items || [];
 
-        const recentRes = await fetch(
-          "https://api.spotify.com/v1/me/player/recently-played?limit=50",
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }
-        );
+      setTracks(topTracks.slice(0, 10));
 
-        const recentData = await recentRes.json();
-        const recentTracks = (recentData.items || []).map((item) => item.track);
+      const blockedIds = new Set(topTracks.map((t) => t.id));
+      const blockedArtists = new Set(
+        topTracks.map((t) => t.artists[0].name.toLowerCase())
+      );
 
-        setRecentlyPlayed(recentTracks.slice(0, 10));
+      setKnownSongIds(blockedIds);
+      setKnownArtistNames(blockedArtists);
 
-        const blockedIds = new Set([
-          ...topTracks.map((track) => track.id),
-          ...recentTracks.map((track) => track.id),
-        ]);
-
-        const blockedArtists = new Set([
-          ...topTracks.map((track) => track.artists[0].name.toLowerCase()),
-          ...recentTracks.map((track) => track.artists[0].name.toLowerCase()),
-        ]);
-
-        setTracks(topTracks.slice(0, 10));
-        setKnownSongIds(blockedIds);
-        setKnownArtistNames(blockedArtists);
-
-        getRecommendations(topTracks, blockedIds, blockedArtists);
-      } catch (err) {
-        console.error("Load data error:", err);
-      }
+      // ⭐ Call old recommendation engine
+      getRecommendations(topTracks, blockedIds, blockedArtists);
     };
 
     loadData();
@@ -154,8 +134,6 @@ function App() {
     return (
       <div className="container">
         <h1>Music Recommender</h1>
-        <p>Find songs based on your Spotify listening history.</p>
-
         <a href="http://127.0.0.1:5000/login">
           <button>Connect Spotify</button>
         </a>
@@ -164,108 +142,69 @@ function App() {
   }
 
   return (
-    <div className="container">
-      <h1>Music Recommender</h1>
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <div className="container">
+            <h1>Music Recommender</h1>
 
-      <div className="columns">
-        {/* TOP SONGS */}
-        <section className="column">
-          <h2>Your Top Songs</h2>
+            <Link to="/recent">
+              <button>View Recently Played</button>
+            </Link>
 
-          <div className="song-list">
-            {tracks.map((track) => (
-              <div className="song-card" key={track.id}>
-                <img src={track.album?.images?.[0]?.url || ""} alt="" />
-
-                <div className="song-info">
-                  <div className="song-text">
-                    <h3>{track.name}</h3>
-                    <p>{track.artists[0].name}</p>
-                  </div>
-
-                  <a
-                    href={track.external_urls?.spotify}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="spotify-link"
-                  >
-                    ▶
-                  </a>
+            <div className="columns">
+              {/* TOP SONGS */}
+              <section className="column">
+                <h2>Your Top Songs</h2>
+                <div className="song-list">
+                  {tracks.map((track) => (
+                    <div className="song-card" key={track.id}>
+                      <img src={track.album?.images?.[0]?.url || ""} alt="" />
+                      <div>
+                        <h3>{track.name}</h3>
+                        <p>{track.artists[0].name}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
+              </section>
 
-        {/* RECOMMENDED SONGS */}
-        <section className="column">
-          <h2>Recommended Songs</h2>
+              {/* RECOMMENDED SONGS */}
+              <section className="column">
+                <h2>Recommended Songs</h2>
 
-          {/* MOVED BUTTON HERE */}
-          <button
-            onClick={() =>
-              getRecommendations(tracks, knownSongIds, knownArtistNames)
-            }
-            style={{ marginBottom: "15px" }}
-          >
-            Refresh Recommendations
-          </button>
+                <button
+                  onClick={() =>
+                    getRecommendations(tracks, knownSongIds, knownArtistNames)
+                  }
+                  style={{ marginBottom: "15px" }}
+                >
+                  Refresh Recommendations
+                </button>
 
-          <div className="song-list">
-            {recommendations.map((track) => (
-              <div className="song-card" key={track.id}>
-                <img src={track.album?.images?.[0]?.url || ""} alt="" />
-
-                <div className="song-info">
-                  <div className="song-text">
-                    <h3>{track.name}</h3>
-                    <p>{track.artists[0].name}</p>
-                  </div>
-
-                  <a
-                    href={track.external_urls?.spotify}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="spotify-link"
-                  >
-                    ▶
-                  </a>
+                <div className="song-list">
+                  {recommendations.map((track) => (
+                    <div className="song-card" key={track.id}>
+                      <img src={track.album?.images?.[0]?.url || ""} alt="" />
+                      <div>
+                        <h3>{track.name}</h3>
+                        <p>{track.artists[0].name}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
+              </section>
+            </div>
           </div>
-        </section>
+        }
+      />
 
-        {/* RECENTLY PLAYED */}
-        <section className="column">
-          <h2>Recently Played</h2>
-
-          <div className="song-list">
-            {recentlyPlayed.map((track) => (
-              <div className="song-card" key={track.id}>
-                <img src={track.album?.images?.[0]?.url || ""} alt="" />
-
-                <div className="song-info">
-                  <div className="song-text">
-                    <h3>{track.name}</h3>
-                    <p>{track.artists[0].name}</p>
-                  </div>
-
-                  <a
-                    href={track.external_urls?.spotify}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="spotify-link"
-                  >
-                    ▶
-                  </a>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-    </div>
+      <Route
+        path="/recent"
+        element={<RecentlyPlayed accessToken={accessToken} />}
+      />
+    </Routes>
   );
 }
 
